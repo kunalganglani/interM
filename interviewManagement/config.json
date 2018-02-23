@@ -1,0 +1,5 @@
+﻿{
+    "connectionString": "mongodb://kunalganglani:asdfjkl123@ds161950.mlab.com:61950/buddymdc",
+    "apiUrl": "https://stark-chamber-75357.herokuapp.com/api",
+    "secret": "REPLACE THIS WITH YOUR OWN SECRET, IT CAN BE ANY STRING"
+}

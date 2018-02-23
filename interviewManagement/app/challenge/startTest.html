@@ -1,0 +1,353 @@
+<html>
+
+<head>
+    <title>HR Buddy</title>
+    <link rel="stylesheet" type="text/css" href="./css/styles.css">
+    <script src="./audio/howler.core.js"></script>
+</head>
+
+<body>
+    <div class="container">
+        <h2 class="leftFloat mediumPaddingTopBottom"> Question 1. </h2>
+        <p> Please tell me something about yourself, your schooling, your college and the kind of projects you have done during
+            your education. </p>
+        <div class="rightFloat  mediumPaddingTopBottom">
+            <div id="clockdiv">
+                <div>
+                    <span class="days"></span>
+                    <div class="smalltext">Days</div>
+                </div>
+                <div>
+                    <span class="hours"></span>
+                    <div class="smalltext">Hours</div>
+                </div>
+                <div>
+                    <span class="minutes"></span>
+                    <div class="smalltext">Minutes</div>
+                </div>
+                <div>
+                    <span class="seconds"></span>
+                    <div class="smalltext">Seconds</div>
+                </div>
+            </div>
+        </div>
+        <div class="kunalPlayer">
+            <div id="title">
+                <span id="track"></span>
+                <div id="timer">0:00</div>
+                <div id="duration">0:00</div>
+            </div>
+            <!-- Controls -->
+            <div class="controlsOuter">
+                <div class="controlsInner">
+                    <div id="loading"></div>
+                    <div class="btn" id="playBtn"></div>
+                    <div class="btn" id="pauseBtn"></div>
+                    <div class="btn" id="prevBtn"></div>
+                    <div class="btn" id="nextBtn"></div>
+                </div>
+                <div class="btn" id="playlistBtn"></div>
+                <div class="btn" id="volumeBtn"></div>
+            </div>
+            <!-- Progress -->
+            <div id="waveform"></div>
+            <div id="bar"></div>
+            <div id="progressBackgroud">
+                <div id="progress"></div>
+            </div>
+            <!-- Playlist -->
+            <div id="playlist">
+                <div id="list"></div>
+            </div>
+            <!-- Volume -->
+            <div id="volume" class="fadeout">
+                <div id="barFull" class="bar"></div>
+                <div id="barEmpty" class="bar"></div>
+                <div id="sliderBtn"></div>
+            </div>
+        </div>
+        <!--  Audio Scripts for player and player visual effects -->
+        <script src="./audio/siriwave.js"></script>
+        <script src="./audio/player.js"></script>
+        <!--Recording button -->
+        <div class="recorder_wrapper">
+            <div class="recorder">
+                <button class="record_btn" id="button">
+                    <!-- <i id="micIcon" class="material-icons">mic</i> -->
+                </button>
+                <p id="msg_box"></p>
+            </div>
+        </div>
+        <!-- Div in which the text extracted from audio would appear -->
+        <div contenteditable="true" id="result"></div>
+        <button class="nextButton" id="goToNext">Next</button>
+        <!-- speech to text -->
+        <script type="text/javascript">
+            var r = document.getElementById('result');
+
+            function startConverting() {
+                if ('webkitSpeechRecognition' in window) {
+                    var speechRecognizer = new webkitSpeechRecognition();
+                    speechRecognizer.continuous = true;
+                    speechRecognizer.interimResults = true;
+                    speechRecognizer.lang = 'en-IN';
+                    speechRecognizer.start();
+
+                    var finalTranscripts = '';
+
+                    speechRecognizer.onresult = function (event) {
+                        var interimTranscripts = '';
+                        for (var i = event.resultIndex; i < event.results.length; i++) {
+                            var transcript = event.results[i][0].transcript;
+                            transcript.replace("\n", "<br>");
+                            if (event.results[i].isFinal) {
+                                finalTranscripts += transcript;
+                            } else {
+                                interimTranscripts += transcript;
+                            }
+                        }
+                        r.innerHTML = finalTranscripts + '<span style="color:#999">' + interimTranscripts +
+                            '</span>';
+                    };
+                    speechRecognizer.onerror = function (event) {};
+                } else {
+                    r.innerHTML = 'Your browser is not supported. If google chrome, please upgrade!';
+                }
+            }
+        </script>
+        <!-- audio record -->
+        <script>
+            var msg_box = document.getElementById('msg_box'),
+                button = document.getElementById('button'),
+                canvas = document.getElementById('canvas'),
+                lang = {
+                    'mic_error': 'Error accessing the microphone', //Ошибка доступа к микрофону
+                    'press_to_start': 'Press to start recording', //Нажмите для начала записи
+                    'recording': 'Recording', //Запись
+                    'play': 'Play', //Воспроизвести
+                    'stop': 'Stop', //Остановить
+                    'download': 'Download', //Скачать
+                    'use_https': 'This application in not working over insecure connection. Try to use HTTPS'
+                },
+                time;
+
+
+            msg_box.innerHTML = lang.press_to_start;
+
+            if (navigator.mediaDevices === undefined) {
+                navigator.mediaDevices = {};
+            }
+
+
+            if (navigator.mediaDevices.getUserMedia === undefined) {
+                navigator.mediaDevices.getUserMedia = function (constrains) {
+                    var getUserMedia = navigator.webkitGetUserMedia || navigator.mozGetUserMedia
+                    if (!getUserMedia) {
+                        return Promise.reject(new Error('getUserMedia is not implemented in this browser'));
+                    }
+
+                    return new Promise(function (resolve, reject) {
+                        getUserMedia.call(navigator, constrains, resolve, reject);
+                    });
+                }
+            }
+
+
+            if (navigator.mediaDevices.getUserMedia) {
+                var btn_status = 'inactive',
+                    mediaRecorder,
+                    chunks = [],
+                    audio = new Audio(),
+                    mediaStream,
+                    audioSrc,
+                    type = {
+                        'type': 'audio/ogg,codecs=opus'
+                    },
+                    ctx,
+                    analys,
+                    blob;
+
+                button.onclick = function () {
+                    if (btn_status == 'inactive') {
+                        start();
+                        startConverting();
+                    } else if (btn_status == 'recording') {
+                        stop();
+                    }
+                }
+
+                function parseTime(sec) {
+                    var h = parseInt(sec / 3600);
+                    var m = parseInt(sec / 60);
+                    var sec = sec - (h * 3600 + m * 60);
+
+                    h = h == 0 ? '' : h + ':';
+                    sec = sec < 10 ? '0' + sec : sec;
+
+                    return h + m + ':' + sec;
+                }
+
+
+                function start() {
+                    navigator.mediaDevices.getUserMedia({
+                        'audio': true
+                    }).then(function (stream) {
+                        mediaRecorder = new MediaRecorder(stream);
+                        mediaRecorder.start();
+
+                        button.classList.add('recording');
+                        btn_status = 'recording';
+
+                        msg_box.innerHTML = lang.recording;
+
+                        if (navigator.vibrate) navigator.vibrate(150);
+
+                        time = Math.ceil(new Date().getTime() / 1000);
+
+
+                        mediaRecorder.ondataavailable = function (event) {
+                            chunks.push(event.data);
+                        }
+
+                        mediaRecorder.onstop = function () {
+                            stream.getTracks().forEach(function (track) {
+                                track.stop()
+                            });
+
+                            blob = new Blob(chunks, type);
+                            audioSrc = window.URL.createObjectURL(blob);
+
+                            audio.src = audioSrc;
+
+                            chunks = [];
+                        }
+
+
+
+                    }).catch(function (error) {
+                        if (location.protocol != 'https:') {
+                            msg_box.innerHTML = lang.mic_error + '<br>' + lang.use_https;
+                        } else {
+                            msg_box.innerHTML = lang.mic_error;
+                        }
+                        button.disabled = true;
+                    });
+                }
+
+                function stop() {
+                    mediaRecorder.stop();
+                    button.classList.remove('recording');
+                    btn_status = 'inactive';
+
+                    if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
+
+                    var now = Math.ceil(new Date().getTime() / 1000);
+
+                    var t = parseTime(now - time);
+
+                    msg_box.innerHTML = '<a href="#" onclick="play(); return false;" class="txt_btn">' + lang.play +
+                        ' (' + t + 's)</a><br>' +
+                        '<a href="#" onclick="save(); return false;" class="txt_btn">' + lang.download + '</a>'
+                }
+
+
+
+                function play() {
+                    audio.play();
+                    msg_box.innerHTML = '<a href="#" onclick="pause(); return false;" class="txt_btn">' + lang.stop +
+                        '</a><br>' +
+                        '<a href="#" onclick="save(); return false;" class="txt_btn">' + lang.download + '</a>';
+                }
+
+                function pause() {
+                    audio.pause();
+                    audio.currentTime = 0;
+                    msg_box.innerHTML = '<a href="#" onclick="play(); return false;" class="txt_btn">' + lang.play +
+                        '</a><br>' +
+                        '<a href="#" onclick="save(); return false;" class="txt_btn">' + lang.download + '</a>'
+                }
+
+                function roundedRect(ctx, x, y, width, height, radius, fill) {
+                    ctx.beginPath();
+                    ctx.moveTo(x, y + radius);
+                    ctx.lineTo(x, y + height - radius);
+                    ctx.quadraticCurveTo(x, y + height, x + radius, y + height);
+                    ctx.lineTo(x + width - radius, y + height);
+                    ctx.quadraticCurveTo(x + width, y + height, x + width, y + height - radius);
+                    ctx.lineTo(x + width, y + radius);
+                    ctx.quadraticCurveTo(x + width, y, x + width - radius, y);
+                    ctx.lineTo(x + radius, y);
+                    ctx.quadraticCurveTo(x, y, x, y + radius);
+
+                    ctx.fillStyle = fill;
+                    ctx.fill();
+                }
+
+                function save() {
+                    var a = document.createElement('a');
+                    a.download = 'record.ogg';
+                    a.href = audioSrc;
+                    document.body.appendChild(a);
+                    a.click();
+
+                    document.body.removeChild(a);
+                }
+
+            } else {
+                if (location.protocol != 'https:') {
+                    msg_box.innerHTML = lang.mic_error + '<br>' + lang.use_https;
+                } else {
+                    msg_box.innerHTML = lang.mic_error;
+                }
+                button.disabled = true;
+            }
+        </script>
+    </div>
+    <!-- clock timer -->
+    <script>
+        function getTimeRemaining(endtime) {
+            var t = Date.parse(endtime) - Date.parse(new Date());
+            var seconds = Math.floor((t / 1000) % 60);
+            var minutes = Math.floor((t / 1000 / 60) % 60);
+            var hours = Math.floor((t / (1000 * 60 * 60)) % 24);
+            var days = Math.floor(t / (1000 * 60 * 60 * 24));
+            return {
+                'total': t,
+                'days': days,
+                'hours': hours,
+                'minutes': minutes,
+                'seconds': seconds
+            };
+        }
+
+        function initializeClock(id, endtime) {
+            var clock = document.getElementById(id);
+            var daysSpan = clock.querySelector('.days');
+            var hoursSpan = clock.querySelector('.hours');
+            var minutesSpan = clock.querySelector('.minutes');
+            var secondsSpan = clock.querySelector('.seconds');
+
+            function updateClock() {
+                var t = getTimeRemaining(endtime);
+                daysSpan.innerHTML = t.days;
+                hoursSpan.innerHTML = ('0' + t.hours).slice(-2);
+                minutesSpan.innerHTML = ('0' + t.minutes).slice(-2);
+                secondsSpan.innerHTML = ('0' + t.seconds).slice(-2);
+                if (t.total <= 0) {
+                    clearInterval(timeinterval);
+                }
+            }
+            updateClock();
+            var timeinterval = setInterval(updateClock, 1000);
+        }
+        var deadline = new Date(Date.parse(new Date()) + 15 * 24 * 60 * 60 * 1000);
+        initializeClock('clockdiv', deadline);
+        setTimeout(function () {
+            $("a.embed-logo,div.share-button").attr("display", "none");
+        }, 9000);
+    </script>
+
+
+</body>
+
+</html>
